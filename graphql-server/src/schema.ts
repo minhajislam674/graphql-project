@@ -25,7 +25,12 @@ const typeDefinitions = `
     info: String!
     feed: [Link!]!
   }
+
+  type Mutation {
+    postLink (url: String!, description: String!): Link! 
+  }
  
+
   type Link {
     id: ID!
     description: String!
@@ -39,10 +44,17 @@ const resolvers = {
     feed: () => links,
   },
 
-  Link: {
-    id: (parent: Link) => parent.id,
-    description: (parent: Link) => parent.description,
-    url: (parent: Link) => parent.url,
+  Mutation: {
+    postLink: (parent: unknown, args: { description: string; url: string }) => {
+      let idCount = links.length;
+      const link: Link = {
+        id: `link-${idCount}`,
+        description: args.description,
+        url: args.url,
+      };
+      links.push(link);
+      return link;
+    },
   },
 };
 
