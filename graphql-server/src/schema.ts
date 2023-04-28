@@ -1,23 +1,6 @@
 import { makeExecutableSchema } from "@graphql-tools/schema";
-
-type Link = {
-  id: string;
-  url: string;
-  description: string;
-};
-
-const links: Link[] = [
-  {
-    id: "link-0",
-    url: "https://graphql-yoga.com",
-    description: "The easiest way of setting up a GraphQL server",
-  },
-  {
-    id: "link-1",
-    url: "https://graphql-yoga.com",
-    description: "The easiest way of setting up a GraphQL server",
-  },
-];
+import { GraphQLContext } from "./context";
+import { Link } from "@prisma/client";
 
 //the type definitions (schema) are the structure of the GraphQL API, and they are defined using the GraphQL Schema Definition Language (SDL)
 const typeDefinitions = `
@@ -41,19 +24,31 @@ const typeDefinitions = `
 const resolvers = {
   Query: {
     info: () => `This is the API of a Hackernews Clone`,
-    feed: () => links,
+    feed: (parent: unknown, args: {}, context: GraphQLContext) =>
+      context.prisma.link.findMany(), //Prisma Client API exposes a number of database queries that let us read and write data in the database.
+  },
+
+  Link: {
+    id: (parent: Link) => parent.id,
+    description: (parent: Link) => parent.description,
+    url: (parent: Link) => parent.url,
   },
 
   Mutation: {
-    postLink: (parent: unknown, args: { description: string; url: string }) => {
-      let idCount = links.length;
-      const link: Link = {
-        id: `link-${idCount}`,
-        description: args.description,
-        url: args.url,
-      };
-      links.push(link);
-      return link;
+    postLink: (
+      parent: unknown,
+      args: { description: string; url: string },
+      context: GraphQLContext
+    ) => {
+      //Prisma Client API exposes a number of database queries that let us read and write data in the database.
+      //calling the create method on a link from your Prisma Client API. As arguments, we're passing the data that the resolvers receive via the args parameter.
+      const newLink = context.prisma.link.create({
+        data: {
+          url: args.url,
+          description: args.description,
+        },
+      });
+      return newLink;
     },
   },
 };
