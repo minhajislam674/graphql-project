@@ -1,6 +1,15 @@
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { GraphQLContext } from "./context";
 import { Link, Comment } from "@prisma/client";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
+import { GraphQLError } from "graphql";
+
+const parseIntSafe = (value: string): number | null => {
+  if (/^(\d+)$/.test(value)) {
+    return parseInt(value, 10);
+  }
+  return null;
+};
 
 //the type definitions (schema) are the structure of the GraphQL API, and they are defined using the GraphQL Schema Definition Language (SDL)
 const typeDefinitions = `
@@ -75,18 +84,33 @@ const resolvers = {
   },
 
   Mutation: {
-    postCommentOnLink: (
+    async postCommentOnLink(
       parent: unknown,
       args: { linkId: string; body: string },
       context: GraphQLContext
-    ) => {
-      const newComment = context.prisma.comment.create({
-        data: {
-          body: args.body,
-          linkId: parseInt(args.linkId),
-        },
-      });
-      return newComment;
+    ) {
+      const comment = await context.prisma.comment
+        .create({
+          data: {
+            body: args.body,
+            linkId: parseIntSafe(args.linkId),
+          },
+        })
+        .catch((err: unknown) => {
+          if (
+            err instanceof PrismaClientKnownRequestError &&
+            err.code === "P2003"
+          ) {
+            return Promise.reject(
+              new GraphQLError(
+                `Cannot post comment on non-existing link with id '${args.linkId}'.`
+              )
+            );
+          }
+          return Promise.reject(err);
+        });
+
+      return comment;
     },
 
     postLink: (
