@@ -15,7 +15,7 @@ const parseIntSafe = (value: string): number | null => {
 const typeDefinitions = `
   type Query {
     info: String!
-    feed: [Link!]!
+    feed (filterNeedle: String): [Link!]!
     comment(id: ID!): Comment
     link(id: ID): Link
   }
@@ -42,8 +42,25 @@ const typeDefinitions = `
 const resolvers = {
   Query: {
     info: () => `This is the API of a Hackernews Clone`,
-    feed: (parent: unknown, args: {}, context: GraphQLContext) =>
-      context.prisma.link.findMany(), //Prisma Client API exposes a number of database queries that let us read and write data in the database.
+    feed: (
+      parent: unknown,
+      args: { filterNeedle?: string },
+      context: GraphQLContext
+    ) => {
+      const where = args.filterNeedle
+        ? {
+            OR: [
+              { description: { contains: args.filterNeedle } },
+              { url: { contains: args.filterNeedle } },
+            ],
+          }
+        : {};
+      //If no filterNeedle argument value is provided, then the where object will be just an empty object and no filtering conditions will be appplied
+      //If filterNeedle argument is provided, we are construting a where object that expresses our two filter conditions from above, which is used by prisma to filter out links that do not adhere to conditions
+
+      return context.prisma.link.findMany({ where });
+    },
+
     comment: (parent: unknown, args: { id: string }, context: GraphQLContext) =>
       context.prisma.comment.findUnique({
         where: {
