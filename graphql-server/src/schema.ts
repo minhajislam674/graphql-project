@@ -4,6 +4,32 @@ import { Link, Comment } from "@prisma/client";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
 import { GraphQLError } from "graphql";
 
+const applyTakeConstraints = (params: {
+  min: number;
+  max: number;
+  value: number;
+}) => {
+  if (params.value < params.min || params.value > params.max) {
+    throw new GraphQLError(
+      `'take' argument value '${params.value}' is outside the valid range of '${params.min}' to '${params.max}'.`
+    );
+  }
+  return params.value;
+};
+
+const applySkipConstraints = (params: {
+  min: number;
+  max: number;
+  value: number;
+}) => {
+  if (params.value < params.min || params.value > params.max) {
+    throw new GraphQLError(
+      `'skip' argument value '${params.value}' is outside the valid range of '${params.min}' to '${params.max}'.`
+    );
+  }
+  return params.value;
+};
+
 const parseIntSafe = (value: string): number | null => {
   if (/^(\d+)$/.test(value)) {
     return parseInt(value, 10);
@@ -15,7 +41,7 @@ const parseIntSafe = (value: string): number | null => {
 const typeDefinitions = `
   type Query {
     info: String!
-    feed (filterNeedle: String): [Link!]!
+    feed (filterNeedle: String, skip: Int, take: Int): [Link!]!
     comment(id: ID!): Comment
     link(id: ID): Link
   }
@@ -44,7 +70,7 @@ const resolvers = {
     info: () => `This is the API of a Hackernews Clone`,
     feed: (
       parent: unknown,
-      args: { filterNeedle?: string },
+      args: { filterNeedle?: string; skip?: number; take?: number },
       context: GraphQLContext
     ) => {
       const where = args.filterNeedle
@@ -58,7 +84,23 @@ const resolvers = {
       //If no filterNeedle argument value is provided, then the where object will be just an empty object and no filtering conditions will be appplied
       //If filterNeedle argument is provided, we are construting a where object that expresses our two filter conditions from above, which is used by prisma to filter out links that do not adhere to conditions
 
-      return context.prisma.link.findMany({ where });
+      const take = applyTakeConstraints({
+        min: 1,
+        max: 50,
+        value: args.take ?? 30,
+      });
+
+      const skip = applySkipConstraints({
+        min: 0,
+        max: 50,
+        value: args.skip ?? 0,
+      });
+
+      return context.prisma.link.findMany({
+        where,
+        skip: skip,
+        take: take,
+      });
     },
 
     comment: (parent: unknown, args: { id: string }, context: GraphQLContext) =>
